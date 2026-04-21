@@ -6,33 +6,60 @@ from models import item as models
 from schemas import item_schema as schemas
 from auth.security import get_current_user
 
-router = APIRouter(prefix="/items", tags=["Alat Camping"])
+# Kita gunakan prefix root "/" agar lebih fleksibel dalam satu file
+router = APIRouter(tags=["Manajemen CampRent"])
 
-# Create Item - Status 201
-@router.post("/", response_model=schemas.ItemResponse, status_code=status.HTTP_201_CREATED)
+# --- ENDPOINT CATEGORY (Entitas 1) ---
+
+@router.post("/categories", response_model=schemas.CategoryResponse, status_code=status.HTTP_201_CREATED)
+def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
+    # Mengecek apakah kategori sudah ada
+    db_category = db.query(models.Category).filter(models.Category.name == category.name).first()
+    if db_category:
+        raise HTTPException(status_code=400, detail="Kategori sudah ada")
+    
+    new_cat = models.Category(name=category.name)
+    db.add(new_cat)
+    db.commit()
+    db.refresh(new_cat)
+    return new_cat
+
+@router.get("/categories", response_model=List[schemas.CategoryResponse])
+def read_categories(db: Session = Depends(get_db)):
+    return db.query(models.Category).all()
+
+
+# --- ENDPOINT ITEMS (Entitas 2 - Berelasi dengan Category) ---
+
+# Create Item - Wajib Token
+@router.post("/items", response_model=schemas.ItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(item: schemas.ItemCreate, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
+    # Validasi: Apakah category_id yang diinput ada di database?
+    category = db.query(models.Category).filter(models.Category.id == item.category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category ID tidak ditemukan. Buat kategori dulu!")
+
     db_item = models.Item(**item.model_dump())
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
 
-# Read All Items
-@router.get("/", response_model=List[schemas.ItemResponse])
+# Read All Items - Publik
+@router.get("/items", response_model=List[schemas.ItemResponse])
 def read_items(db: Session = Depends(get_db)):
-    items = db.query(models.Item).all()
-    return items
+    return db.query(models.Item).all()
 
-# Read Item by ID
-@router.get("/{item_id}", response_model=schemas.ItemResponse)
+# Read Item by ID - Publik
+@router.get("/items/{item_id}", response_model=schemas.ItemResponse)
 def read_item(item_id: int, db: Session = Depends(get_db)):
     item = db.query(models.Item).filter(models.Item.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Alat camping tidak ditemukan")
     return item
 
-# Update Item
-@router.put("/{item_id}", response_model=schemas.ItemResponse)
+# Update Item - Wajib Token
+@router.put("/items/{item_id}", response_model=schemas.ItemResponse)
 def update_item(item_id: int, item_data: schemas.ItemCreate, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     db_item = db.query(models.Item).filter(models.Item.id == item_id).first()
     if not db_item:
@@ -45,8 +72,8 @@ def update_item(item_id: int, item_data: schemas.ItemCreate, db: Session = Depen
     db.refresh(db_item)
     return db_item
 
-# Delete Item - Terproteksi JWT
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+# Delete Item - Wajib Token
+@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(item_id: int, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     db_item = db.query(models.Item).filter(models.Item.id == item_id).first()
     if not db_item:
