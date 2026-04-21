@@ -3,10 +3,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Alamat database SQLite kamu
+# Alamat database SQLite saya
 SQLALCHEMY_DATABASE_URL = "sqlite:///./camprent.db"
 
-# Baris ini tetap sama
+
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
